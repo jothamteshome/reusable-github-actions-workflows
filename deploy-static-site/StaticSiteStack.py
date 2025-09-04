@@ -1,4 +1,3 @@
-import uuid
 from aws_cdk import (
     Stack,
     aws_s3 as s3,
@@ -14,6 +13,7 @@ from aws_cdk import (
 )
 
 from constructs import Construct
+from typing import Optional
 
 class StaticSiteStack(Stack):
     def __init__(
@@ -23,12 +23,15 @@ class StaticSiteStack(Stack):
             repo_name: str, 
             hosted_zone_name: str, 
             hosted_zone_id: str, 
+            domain_name: Optional[str]=None,
             **kwargs
             ) -> None:
         
         super().__init__(scope, construct_id, **kwargs)
 
-        domain_name = f"{repo_name}.{hosted_zone_name}"
+        constructed_domain_name = f"{repo_name}.{hosted_zone_name}" if not domain_name else domain_name
+        formatted_domain_id = constructed_domain_name.replace('.', '-')
+        record_name = constructed_domain_name if constructed_domain_name != hosted_zone_name else "@"
 
         # Hosted Zone lookup
         hosted_zone = route53.HostedZone.from_hosted_zone_attributes(
@@ -42,7 +45,6 @@ class StaticSiteStack(Stack):
         bucket = s3.Bucket(
             self,
             "SiteBucket",
-            bucket_name=f"{repo_name}-static-site-{uuid.uuid4()}",
             public_read_access=False,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=RemovalPolicy.DESTROY,
@@ -54,7 +56,7 @@ class StaticSiteStack(Stack):
         oac = cloudfront.S3OriginAccessControl(
             self, 
             "OAC",
-            description=f"OAC for {repo_name} site",
+            description=f"OAC for {constructed_domain_name} site",
             signing=cloudfront.Signing(
                 protocol=cloudfront.SigningProtocol.SIGV4,
                 behavior=cloudfront.SigningBehavior.ALWAYS
@@ -66,7 +68,7 @@ class StaticSiteStack(Stack):
         cert = acm.Certificate(
             self,
             "SiteCert",
-            domain_name=domain_name,
+            domain_name=constructed_domain_name,
             validation=acm.CertificateValidation.from_dns(hosted_zone)
         )
 
@@ -76,7 +78,7 @@ class StaticSiteStack(Stack):
             self,
             "SiteDistribution",
             default_root_object="index.html",
-            domain_names=[domain_name],
+            domain_names=[constructed_domain_name],
             certificate=cert,
             default_behavior=cloudfront.BehaviorOptions(
                 origin=origins.S3BucketOrigin(bucket, origin_access_control_id=oac.origin_access_control_id),
@@ -111,12 +113,12 @@ class StaticSiteStack(Stack):
             self,
             "AliasRecord",
             zone=hosted_zone,
-            record_name=repo_name,
+            record_name=record_name,
             target=route53.RecordTarget.from_alias(targets.CloudFrontTarget(distribution))
         )
 
 
-        CfnOutput(self, "BucketNameOutput", value=bucket.bucket_name, export_name=f"{repo_name}-bucket-name")
-        CfnOutput(self, "CloudFrontIdOutput", value=distribution.distribution_id, export_name=f"{repo_name}-cloudfront-id")
+        CfnOutput(self, "BucketNameOutput", value=bucket.bucket_name, export_name=f"{formatted_domain_id}-bucket-name")
+        CfnOutput(self, "CloudFrontIdOutput", value=distribution.distribution_id, export_name=f"{formatted_domain_id}-cloudfront-id")
 
 

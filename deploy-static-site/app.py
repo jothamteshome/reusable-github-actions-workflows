@@ -7,6 +7,7 @@ app = cdk.App()
 repo_name: str = app.node.try_get_context("repo_name")
 hosted_zone_name: str = os.getenv("HOSTED_ZONE_NAME")
 hosted_zone_id: str = os.getenv("HOSTED_ZONE_ID")
+domain_name: str = os.getenv("DOMAIN_NAME")
 
 
 StaticSiteStack(
@@ -18,7 +19,8 @@ StaticSiteStack(
         ),
     repo_name=repo_name,
     hosted_zone_name=hosted_zone_name,
-    hosted_zone_id=hosted_zone_id
+    hosted_zone_id=hosted_zone_id,
+    domain_name=domain_name
 )
 
 app.synth()
