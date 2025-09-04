@@ -43,11 +43,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Install Node & Build React
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: |
+
+      - name: Build project
+        if: hashFiles('package-lock.json') != ''
+        run: |
           npm ci
           npm run build
 
@@ -64,6 +67,7 @@ jobs:
         env:
           HOSTED_ZONE_NAME: ${{ secrets.HOSTED_ZONE_NAME }}
           HOSTED_ZONE_ID: ${{ secrets.HOSTED_ZONE_ID }}
+          DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
         run: cdk deploy --app "python3 app.py" --context repo_name="$FORMATTED_REPO_NAME" --require-approval never
       
       - name: Get Bucket Name & CloudFront ID
@@ -92,8 +96,7 @@ jobs:
           elif [ -d ".next" ]; then
             BUILD_DIR=".next/"
           else
-            echo "No known build directory found!"
-            exit 1
+            BUILD_DIR="./"
           fi
 
           echo "Using build directory: $BUILD_DIR"
